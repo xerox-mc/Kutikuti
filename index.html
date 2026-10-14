@@ -360,6 +360,26 @@
   @keyframes floatUp { 0% { opacity: 0; transform: translateY(12px) scale(.7); } 20% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: 0; transform: translateY(-100px) scale(1); } }
   .confetti { position: fixed; top: -14px; width: 9px; height: 13px; border-radius: 3px; z-index: 110; pointer-events: none; animation: confFall 2s cubic-bezier(.3,.6,.4,1) forwards; }
   @keyframes confFall { to { transform: translateY(110vh) rotate(720deg); opacity: .9; } }
+  .rank-badge.r0 { background: linear-gradient(135deg, #e8f8e0, #c9f0c0); color: #2e6b2e; border-color: #b7e6a8; }
+  .rank-badge.r1 { background: linear-gradient(135deg, #ffe3ef, #ffc3dc); color: #a0245a; border-color: #ffb0cf; }
+  .rank-badge.r2 { background: linear-gradient(135deg, #e3f0ff, #b9dcff); color: #1b4f8a; border-color: #9ccbff; }
+  .rank-badge.r3 { background: linear-gradient(135deg, #e6e0ff, #c3b6ff, #e6e0ff); background-size: 200% 100%; color: #4b2a9b; border-color: #b7a6ff; animation: rankShine 3s linear infinite; }
+  .rank-badge.r4 { background: linear-gradient(135deg, #fff3c4, #ffd86b, #fff3c4); background-size: 200% 100%; color: #7d4b00; border-color: #ffcf5c; box-shadow: 0 0 10px rgba(255,200,80,.5); animation: rankShine 2.4s linear infinite; }
+  @keyframes rankShine { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+  .mission { padding: 10px 0; border-bottom: 1px dashed var(--rose-200); }
+  .mission:last-child { border-bottom: none; }
+  .mission.claimed { opacity: .6; }
+  .mission .mtop { display: flex; justify-content: space-between; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .mission .mtop b { color: var(--rose-600); }
+  #wheelOverlay { z-index: 60; }
+  .wheel-modal { text-align: center; }
+  .wheel-title { color: var(--rose-600); margin: 6px 0 14px; }
+  .wheel-wrap { position: relative; width: 260px; height: 260px; margin: 0 auto; }
+  .wheel { width: 100%; height: 100%; border-radius: 50%; border: 6px solid #fff; box-shadow: 0 10px 26px rgba(125,36,70,.25); position: relative; transition: transform 4s cubic-bezier(.17,.67,.2,1); }
+  .wheel-labels { position: absolute; inset: 0; }
+  .wheel-labels span { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-origin: 0 0; }
+  .wheel-labels span b { position: absolute; left: -36px; top: -112px; width: 72px; text-align: center; font-size: 13px; color: var(--rose-800); display: block; }
+  .wheel-pointer { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 26px; color: #c4456f; z-index: 2; text-shadow: 0 2px 0 #fff; }
   .disc-badge { overflow: hidden; }
   .disc-badge::after { content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent); animation: shine 2.6s ease-in-out infinite; }
   @keyframes shine { 0% { left: -60%; } 60%, 100% { left: 130%; } }
@@ -455,6 +475,19 @@
       <button class="mini-btn ghost" id="shareBtn">مشاركة المنتج</button>
       <div id="panels"></div>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="wheelOverlay">
+  <div class="modal acc-modal wheel-modal">
+    <button class="close" id="wheelClose">×</button>
+    <h3 class="wheel-title">🎡 عجلة الحظ</h3>
+    <div class="wheel-wrap">
+      <div class="wheel-pointer">▼</div>
+      <div class="wheel" id="wheel"><div class="wheel-labels" id="wheelLabels"></div></div>
+    </div>
+    <div class="small-note" id="wheelInfo"></div>
+    <button class="btn" id="spinBtn"><span id="spinText">🎡 لفي!</span></button>
   </div>
 </div>
 
@@ -638,6 +671,8 @@
     renderAuth();
     refreshAlerts();
     watchCodes();
+    watchEvents();
+    watchUser();
     if (openId) renderPanels();
   }
   function renderAuth() {
@@ -773,7 +808,7 @@
           rating: pickStar, text: $("revText").value.trim().slice(0, 500), createdAt: Date.now()
         });
         beep("ok");
-        awardOnce(`review__${me.uid}__${p.id}`, pointsCfg.xpReview, pointsCfg.xpReview).catch(e => console.error(e));
+        awardOnce(`review__${me.uid}__${p.id}`, pointsCfg.xpReview, pointsCfg.xpReview, "review").catch(e => console.error(e));
         confetti();
       } catch (e) { alert("مش قادرة أحفظ التقييم، جربي تاني"); }
       rs.disabled = false;
@@ -791,7 +826,7 @@
         });
         $("qText").value = "";
         beep("ok");
-        awardOnce(`question__${me.uid}__${p.id}`, pointsCfg.xpQuestion, pointsCfg.xpQuestion).catch(e => console.error(e));
+        awardOnce(`question__${me.uid}__${p.id}`, pointsCfg.xpQuestion, pointsCfg.xpQuestion, "question").catch(e => console.error(e));
       } catch (e) { alert("مش قادرة أبعت السؤال"); }
       qSend.disabled = false;
     };
@@ -1029,7 +1064,15 @@
     { min: 12, title: "ملكة كوتي", icon: "👑" }
   ];
   const MAX_REDEEM = 5; // أقصى خصم بالنقاط مهما كان إعداد الأدمن
-  const POINTS_DEFAULT = { enabled: true, xpReview: 10, xpQuestion: 5, xpShare: 3, xpDaily: 2, pointsPerPercent: 20, maxPercent: 5 };
+  const POINTS_DEFAULT = { enabled: true, xpReview: 10, xpQuestion: 5, xpShare: 3, xpDaily: 2, pointsPerPercent: 20, maxPercent: 5, dailyTable: [2, 3, 5, 7, 9, 12, 20], spinFree: 5, spinEveryDays: 3 };
+  const MAX_MISSION_REWARD = 30;
+  const PRIZES = [
+    { label: "2 ✨", pts: 2, w: 30 }, { label: "5 ✨", pts: 5, w: 25 }, { label: "10 ✨", pts: 10, w: 20 },
+    { label: "15 ✨", pts: 15, w: 12 }, { label: "20 ✨", pts: 20, w: 8 }, { label: "30 🌟", pts: 30, w: 5 }
+  ];
+  let myUser = null, unsubUser = null, spinning = false, wheelRot = 0;
+  let missions = [];
+  let myEventKeys = new Set();
   let pointsCfg = { ...POINTS_DEFAULT };
   let profiles = {};          // uid -> { name, xp, points }
   let myCodes = [];
@@ -1046,7 +1089,7 @@
     const pr = uid && profiles[uid];
     if (!pr) return esc(name);
     const rk = rankOf(levelOf(pr.xp));
-    return `${esc(name)} <span class="rank-badge">${rk.icon} ${rk.title}</span>`;
+    return `${esc(name)} <span class="rank-badge r${RANKS.indexOf(rk)}">${rk.icon} ${rk.title}</span>`;
   }
 
   // ---------- تأثيرات ----------
@@ -1080,7 +1123,7 @@
   // أي حدث بيكسب نقط بيتسجل في pointEvents بمفتاح ثابت، والكسب بيحصل داخل معاملة (transaction)
   // يعني: مهما تكرر الضغط أو الريفريش أو تعدد التبويبات، الحدث بيتحسب مرة واحدة بس
   const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
-  async function awardOnce(evKey, xp, pts) {
+  async function awardOnce(evKey, xp, pts, statKey) {
     if (!me || !pointsCfg.enabled || (!xp && !pts)) return false;
     const uid = me.uid;
     const evRef = db.collection("pointEvents").doc(evKey);
@@ -1091,11 +1134,16 @@
       if (ev.exists) return;
       const pr = await tx.get(pRef);
       const cur = pr.exists ? pr.data() : { name: me.name, xp: 0, points: 0 };
+      const stats = { review: 0, question: 0, share: 0, login: 0, ...(cur.stats || {}) };
+      if (statKey) stats[statKey] = (Number(stats[statKey]) || 0) + 1;
+      const dk = todayKey();
+      const ds = cur.dayStats && cur.dayStats.date === dk ? { ...cur.dayStats } : { date: dk, review: 0, question: 0, share: 0, login: 0 };
+      if (statKey) ds[statKey] = (Number(ds[statKey]) || 0) + 1;
       tx.set(evRef, clean({ uid, key: evKey, xp, pts, createdAt: Date.now() }));
-      tx.set(pRef, clean({ name: cur.name || me.name, xp: (Number(cur.xp) || 0) + xp, points: Math.max(0, (Number(cur.points) || 0) + pts) }));
+      tx.set(pRef, clean({ ...cur, name: cur.name || me.name, xp: (Number(cur.xp) || 0) + xp, points: Math.max(0, (Number(cur.points) || 0) + pts), stats, dayStats: ds }));
       granted = true;
     });
-    if (granted) { floatText(`+${xp} ✨`); beep("ok"); }
+    if (granted) { myEventKeys.add(evKey); floatText(`+${xp} ✨`); beep("ok"); }
     return granted;
   }
   async function ensureProfile(u) {
@@ -1103,14 +1151,25 @@
     const s = await ref.get();
     if (!s.exists) await ref.set({ name: u.name, xp: 0, points: 0 });
   }
+  const keyFrom = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   async function dailyCheck() {
-    if (!me) return;
-    const day = todayKey();
-    await awardOnce(`daily__${me.uid}__${day}`, pointsCfg.xpDaily, pointsCfg.xpDaily);
+    if (!me || !pointsCfg.enabled) return;
+    const today = todayKey();
+    const uref = db.collection("users").doc(me.uid);
+    const us = await uref.get();
+    if (!us.exists) return;
+    const u = us.data();
+    if (u.lastVisit === today) return;
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const streak = u.lastVisit === keyFrom(y) ? (Number(u.streak) || 0) + 1 : 1;
+    const table = (pointsCfg.dailyTable && pointsCfg.dailyTable.length) ? pointsCfg.dailyTable : POINTS_DEFAULT.dailyTable;
+    const reward = Number(table[Math.min(streak, table.length) - 1]) || pointsCfg.xpDaily;
+    const ok = await awardOnce(`daily__${me.uid}__${today}`, reward, reward, "login");
+    if (ok) await uref.update({ lastVisit: today, streak });
   }
   function awardShare(p) {
     if (!me) return;
-    return awardOnce(`share__${me.uid}__${p.id}`, pointsCfg.xpShare, pointsCfg.xpShare).catch(e => console.error(e));
+    return awardOnce(`share__${me.uid}__${p.id}`, pointsCfg.xpShare, pointsCfg.xpShare, "share").catch(e => console.error(e));
   }
 
   // ---------- استبدال النقاط بكود خصم (معاملة واحدة: الخصم من النقاط + إنشاء الكود) ----------
@@ -1132,7 +1191,7 @@
         const cur = pr.exists ? pr.data() : { name: me.name, xp: 0, points: 0 };
         const have = Number(cur.points) || 0;
         if (have < cost) throw new Error("NOT_ENOUGH:" + have);
-        tx.set(pRef, clean({ name: cur.name || me.name, xp: Number(cur.xp) || 0, points: have - cost }));
+        tx.set(pRef, clean({ ...cur, name: cur.name || me.name, points: have - cost }));
         tx.set(cRef, clean({ code, uid: me.uid, name: me.name || "", percent, cost, used: false, createdAt: Date.now() }));
       });
       beep("ok");
@@ -1147,6 +1206,142 @@
       if ($("redeemBtn")) $("redeemBtn").disabled = false;
     }
   }
+
+  // ---------- المهمات اليومية ----------
+  function hashStr(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function dailyMissions() {
+    const day = todayKey();
+    return missions.filter(m => m.active !== false)
+      .map(m => ({ m, k: hashStr(day + m.id) }))
+      .sort((a, b) => a.k - b.k).slice(0, 3).map(x => x.m);
+  }
+  function todayProgress(type) {
+    const pr = profiles[me && me.uid] || {};
+    const ds = pr.dayStats && pr.dayStats.date === todayKey() ? pr.dayStats : {};
+    return Number(ds[type]) || 0;
+  }
+  async function claimMission(m) {
+    if (!me) return;
+    const have = todayProgress(m.type);
+    if (have < m.target) return alert("المهمة لسه ما خلصتش");
+    const reward = Math.min(MAX_MISSION_REWARD, Number(m.reward) || 0);
+    const ok = await awardOnce(`mission__${me.uid}__${todayKey()}__${m.id}`, reward, reward);
+    if (!ok) alert("استلمتي المكافأة دي قبل كده");
+    else confetti();
+  }
+  db.collection("missions").onSnapshot(snap => {
+    missions = [];
+    snap.forEach(d => missions.push({ id: d.id, ...d.data() }));
+    missions.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    renderAccount();
+  });
+  let unsubEvents = null;
+  function watchEvents() {
+    if (unsubEvents) unsubEvents();
+    unsubEvents = null; myEventKeys = new Set();
+    if (!me) return;
+    unsubEvents = db.collection("pointEvents").where("uid", "==", me.uid).onSnapshot(snap => {
+      myEventKeys = new Set(); snap.forEach(d => myEventKeys.add(d.id));
+      renderAccount();
+    });
+  }
+
+  // ---------- عجلة الحظ ----------
+  function watchUser() {
+    if (unsubUser) unsubUser();
+    unsubUser = null; myUser = null;
+    if (!me) return;
+    unsubUser = db.collection("users").doc(me.uid).onSnapshot(s => {
+      myUser = s.exists ? s.data() : null;
+      renderAccount();
+    });
+  }
+  function spinState() {
+    const spins = Number(myUser && myUser.spins) || 0;
+    const nextAt = Number(myUser && myUser.nextSpinAt) || 0;
+    const free = spins < (pointsCfg.spinFree ?? 5) || Date.now() >= nextAt;
+    return { free, nextAt, spins };
+  }
+  function spinLine() {
+    const st = spinState();
+    if (st.free) return `<div class="small-note">🎡 عندك لفة مجانية دلوقتي!</div>`;
+    const days = Math.ceil((st.nextAt - Date.now()) / 864e5);
+    return `<div class="small-note">🎡 اللفة الجاية بعد ${days} يوم</div>`;
+  }
+  function weightedPick() {
+    const total = PRIZES.reduce((a, p) => a + p.w, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < PRIZES.length; i++) { r -= PRIZES[i].w; if (r < 0) return i; }
+    return 0;
+  }
+  function openWheel() {
+    if (!me) return openAuth();
+    $("accountOverlay").classList.remove("show");
+    buildWheel();
+    $("wheelOverlay").classList.add("show");
+    beep("open");
+    updateWheelBtn();
+  }
+  function buildWheel() {
+    const n = PRIZES.length, seg = 360 / n;
+    const colors = ["#ffd6e5", "#c9ecff", "#fff1c4", "#e4d9ff", "#d6f7d0", "#ffc7c7"];
+    $("wheel").style.background = "conic-gradient(" + PRIZES.map((_, i) => `${colors[i % colors.length]} ${i * seg}deg ${(i + 1) * seg}deg`).join(",") + ")";
+    $("wheelLabels").innerHTML = PRIZES.map((p, i) => `<span style="transform: rotate(${i * seg + seg / 2}deg)"><b>${p.label}</b></span>`).join("");
+  }
+  function updateWheelBtn() {
+    const st = spinState();
+    $("spinBtn").disabled = spinning || !st.free;
+    $("spinText").textContent = spinning ? "🎡 بتلف..." : st.free ? "🎡 لفي!" : "استني اللفة الجاية";
+    $("wheelInfo").textContent = st.free ? "عندك لفة مجانية دلوقتي 🎉" : `اللفة الجاية بعد ${Math.ceil((st.nextAt - Date.now()) / 864e5)} يوم`;
+  }
+  async function spinWheel() {
+    if (!me || spinning) return;
+    spinning = true; updateWheelBtn();
+    const pick = weightedPick();
+    const uref = db.collection("users").doc(me.uid);
+    const pref = db.collection("profiles").doc(me.uid);
+    const FREE = pointsCfg.spinFree ?? 5;
+    const EVERY = Math.max(1, pointsCfg.spinEveryDays ?? 3);
+    let reward = 0;
+    try {
+      await db.runTransaction(async tx => {
+        const us = await tx.get(uref);
+        const ps = await tx.get(pref);
+        const u = us.exists ? us.data() : {};
+        const spins = Number(u.spins) || 0;
+        const nextAt = Number(u.nextSpinAt) || 0;
+        if (!(spins < FREE || Date.now() >= nextAt)) throw new Error("NOT_YET");
+        const cur = ps.exists ? ps.data() : { name: me.name, xp: 0, points: 0 };
+        const nextSpins = spins + 1;
+        reward = PRIZES[pick].pts;
+        tx.set(uref, clean({ ...u, spins: nextSpins, nextSpinAt: nextSpins >= FREE ? Date.now() + EVERY * 864e5 : 0, lastSpinAt: Date.now() }));
+        tx.set(pref, clean({ ...cur, name: cur.name || me.name, points: (Number(cur.points) || 0) + reward }));
+      });
+      const seg = 360 / PRIZES.length;
+      // ندوّر للأمام دايماً (من غير ما العجلة ترجع لورا) ونوقف على الجايزة المختارة فوق المؤشر
+      const want = (360 - (pick + 0.5) * seg + 360) % 360;
+      const cur = wheelRot % 360;
+      wheelRot += 360 * 5 + (((want - cur) % 360) + 360) % 360;
+      $("wheel").style.transform = `rotate(${wheelRot}deg)`;
+      beep("click");
+      setTimeout(() => {
+        spinning = false;
+        confetti();
+        floatText(`+${reward} ✨`);
+        beep("ok");
+        updateWheelBtn();
+      }, 4200);
+    } catch (e) {
+      spinning = false;
+      updateWheelBtn();
+      const msg = String((e && e.message) || e);
+      if (msg === "NOT_YET") alert("اللفة المجانية الجاية لسه ما جتش");
+      else { console.error(e); alert("مش قادرة ألف العجلة: " + ((e && e.code) ? e.code + " — " : "") + msg); }
+    }
+  }
+  $("wheelClose").onclick = () => { if (!spinning) $("wheelOverlay").classList.remove("show"); };
+  $("wheelOverlay").onclick = e => { if (e.target.id === "wheelOverlay" && !spinning) $("wheelOverlay").classList.remove("show"); };
+  $("spinBtn").onclick = spinWheel;
 
   // ---------- لوحة الحساب ----------
   function openAccount() {
@@ -1190,7 +1385,29 @@
           : `<div class="small-note">الاستبدال مقفول دلوقتي</div>`}
         <div>${myCodes.map(c => `<div class="code-item${c.used ? " used" : ""}"><b>${esc(c.code)}</b> · ${c.percent}% ${c.used ? "· اتستخدم" : "· متاح"}</div>`).join("") || '<div class="small-note">مفيش أكواد لسه</div>'}</div>
       </div>
+      <div class="sec2">
+        <h3>🎯 مهمات اليوم <small style="color:var(--rose-400)">(بتتجدد كل يوم)</small></h3>
+        <div>${spinLine()}</div>
+        ${dailyMissions().map(m => {
+          const have = todayProgress(m.type);
+          const done = have >= m.target;
+          const claimed = myEventKeys.has(`mission__${me.uid}__${todayKey()}__${m.id}`);
+          return `<div class="mission${claimed ? " claimed" : ""}">
+            <div class="mtop"><span>${esc(m.icon || "🎯")} ${esc(m.title)}</span><b>+${Number(m.reward) || 0} ✨</b></div>
+            <div class="xp-bar"><span style="width:${Math.min(100, (have / m.target) * 100)}%"></span></div>
+            <div class="small-note">${Math.min(have, m.target)}/${m.target}</div>
+            ${claimed ? '<div class="small-note">✅ اتستلمت</div>'
+              : `<button class="mini-btn" data-claim="${m.id}" ${done ? "" : "disabled"}>${done ? "🎁 استلمي" : "لسه"}</button>`}
+          </div>`;
+        }).join("") || '<div class="small-note">مفيش مهمات دلوقتي</div>'}
+      </div>
+      <div class="sec2"><button class="mini-btn" id="openWheel">🎡 عجلة الحظ</button></div>
       <button class="mini-btn ghost" id="accLogout">🚪 خروج</button>`;
+    $("openWheel").onclick = openWheel;
+    $("accBody").querySelectorAll("[data-claim]").forEach(b => b.onclick = () => {
+      const m = missions.find(x => x.id === b.dataset.claim);
+      if (m) claimMission(m);
+    });
     const rb = $("redeemBtn");
     if (rb) rb.onclick = () => redeem(Number($("redeemPct").value));
     $("accLogout").onclick = () => { closeAccount(); setMe(null); };
@@ -1241,7 +1458,7 @@
 
   renderAuth();
   refreshAlerts();
-  if (me) { ensureProfile(me).then(dailyCheck); watchCodes(); }
+  if (me) { ensureProfile(me).then(dailyCheck); watchCodes(); watchEvents(); watchUser(); }
 </script>
 </body>
 </html>
